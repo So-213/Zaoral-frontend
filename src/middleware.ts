@@ -1,7 +1,7 @@
 // middleware.ts
 
 import { NextResponse, NextRequest } from "next/server";
-// import { auth } from "@/lib/auth";
+import { getToken } from "next-auth/jwt";
 
 // デバッグログの制御用
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -20,14 +20,20 @@ export async function middleware(req: NextRequest) {
     try {
         debugLog('Middleware processing request:', req.url);
 
-        // 本来ならコメントアウトを外すべきですが、vercel側の "middleware1MB規制" に引っかかるため、コメントアウトさせています
+        // auth() は Prismaアダプターごとバンドルされ vercel の "middleware1MB規制" に引っかかるため、
+        // DBアクセスを伴わない getToken() でセッションCookieの検証のみを行う
+        // secureCookie を明示しないと、本番(https)のCookie名 __Secure-authjs.session-token を探せず
+        // 常に未ログイン扱いになるため注意
+        const token = await getToken({
+            req,
+            secret: process.env.AUTH_SECRET,
+            secureCookie: process.env.NODE_ENV === 'production',
+        });
 
-        // const session = await auth(); // 画面遷移のたびに、ユーザの正当性を検証。 Prismaアダプターを使用してデータベースにアクセス
-
-        // if (!session || !session.user) {
-        //     debugLog('No valid session found, redirecting to home');
-        //     return NextResponse.redirect(new URL("/", req.url));
-        // }
+        if (!token) {
+            debugLog('No valid session found, redirecting to home');
+            return NextResponse.redirect(new URL("/", req.url));
+        }
 
         debugLog('Valid session found, proceeding to dashboard');
         return NextResponse.next();
@@ -46,6 +52,3 @@ export const config = {
         "/account/:path*"
     ],
 };
-
-// Node.jsランタイムを明示的に指定
-export const runtime = 'nodejs';
