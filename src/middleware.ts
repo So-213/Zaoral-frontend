@@ -24,9 +24,12 @@ export async function middleware(req: NextRequest) {
         // DBアクセスを伴わない getToken() でセッションCookieの検証のみを行う
         // secureCookie を明示しないと、本番(https)のCookie名 __Secure-authjs.session-token を探せず
         // 常に未ログイン扱いになるため注意
+        // secret は src/lib/auth.ts の設定と必ず一致させること
+        // (auth.ts が secret: process.env.NEXTAUTH_SECRET を明示指定しているため、
+        //  AUTH_SECRET を渡すと復号に失敗し全ユーザーが未ログイン扱いになる)
         const token = await getToken({
             req,
-            secret: process.env.AUTH_SECRET,
+            secret: process.env.NEXTAUTH_SECRET,
             secureCookie: process.env.NODE_ENV === 'production',
         });
 
