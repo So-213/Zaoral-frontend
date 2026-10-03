@@ -1,6 +1,15 @@
-# Zaoral 
+# Zaoral (frontend)
 
 [English](docs/README_EN.md) | [中文](docs/README_ZH.md)
+
+> **フロント/バックエンド分離の移行作業中**
+> このリポジトリは、Zaoralをフロントエンド(Next.js)とバックエンド(Spring Boot)へ分離するために
+> [So-213/Zaoral](https://github.com/So-213/Zaoral) から複製したフロントエンド側のリポジトリです。
+>
+> 移行計画・設計判断は **[Zaoral-migration-docs](https://github.com/So-213/Zaoral-migration-docs)** に集約しています。
+> 仕様に関わる変更を行う際は、そちらのドキュメントも併せて更新してください。
+>
+> バックエンド: [Zaoral-backend-springboot](https://github.com/So-213/Zaoral-backend-springboot)
 
 <img src="./public/Zaoral_README.png" alt="Zaoral" width="70%" />
 
