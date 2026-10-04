@@ -10,8 +10,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma), //認証時のDB保存　//providerが違ってもidが一意になるようにする
   providers: [
     Google({
-      clientId: process.env.AUTH_GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.AUTH_GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.AUTH_GOOGLE_ID!,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET!,
       allowDangerousEmailAccountLinking: true,
     }),
     LINE({
