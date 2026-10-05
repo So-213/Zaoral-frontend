@@ -1,4 +1,5 @@
 # Zaoral - Next.js アプリケーション用 Dockerfile
+# docker buildの中身
 
 # ベースイメージ
 FROM node:22.9.0-slim AS base
@@ -9,7 +10,9 @@ WORKDIR /app
 
 # package.json と lockfile をコピー
 # COPYというのはOS非依存のテキストのみをプロジェクトからDockerにコピーしているという意味
-COPY package.json package-lock.json ./  
+COPY package.json package-lock.json ./
+# postinstall の prisma generate が schema.prisma を必要とするため先にコピーする
+COPY prisma ./prisma
 # 依存関係をインストール（本番用）
 RUN npm ci
 
