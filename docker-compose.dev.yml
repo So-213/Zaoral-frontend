@@ -1,6 +1,7 @@
 # Zaoral - 開発用 Docker Compose
 # ホットリロード付きで開発環境を起動
-# 使用方法: docker compose -f docker-compose.dev.yml up
+# 使用方法: docker compose -f docker-compose.dev.yml up　イメージを立ち上げる
+# docker compose up --build　　ビルドしてイメージを作り直してから立ち上げる
 
 services:
   # localhostだとホストのPostgreSQLには直接つながらないため、自前で用意したものを使用
@@ -69,3 +70,5 @@ services:
 volumes:
   zaoral_postgres_data:
   zaoral_pgadmin_data:
+
+
