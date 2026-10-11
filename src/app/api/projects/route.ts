@@ -4,37 +4,29 @@ import {
   handleApiError,
   validateRequired,
 } from '@/lib/api-helpers';
-import {
-  createProject,
-  deleteProject,
-} from '@/lib/services/project-service';
+import { backendFetch, proxyResponse } from '@/lib/backend';
 
-
-
+/**
+ * プロジェクトを作成するAPIエンドポイント
+ * POST /api/projects
+ *
+ * 認証のみNext.jsで行い、バリデーション・残機チェック・作成はSpring Bootが行う。
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { slug, type, name } = body;
+    const { slug, type, name, message } = body;
 
     // 認証チェック
-    const { userId, userName } = await requireAuth();
+    const { userId } = await requireAuth();
 
-    // バリデーション
-    const slugValidation = validateRequired(slug, 'スラッグ');
-    if (slugValidation) return slugValidation;
+    const response = await backendFetch('/api/projects', userId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug, type, name, message }),
+    });
 
-    const typeRequiredValidation = validateRequired(type, 'プロジェクトタイプ');
-    if (typeRequiredValidation) return typeRequiredValidation;
-
-    const nameValidation = validateRequired(name, 'プロジェクト名');
-    if (nameValidation) return nameValidation;
-
-    const result = await createProject({ userId, userName, projectType: type, slug, name, body });
-    if (result instanceof NextResponse) {
-      return result;
-    }
-
-    return NextResponse.json(result, { status: 201 });
+    return proxyResponse(response);
   } catch (error) {
     // 認証エラーの場合は401を返す
     if (error instanceof Error && error.message === '認証が必要です') {
@@ -47,6 +39,12 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * プロジェクトを削除するAPIエンドポイント
+ * DELETE /api/projects?id=<projectId>
+ *
+ * 認証のみNext.jsで行い、所有者チェックと削除はSpring Bootが行う。
+ */
 export async function DELETE(request: NextRequest) {
   try {
     // 認証チェック
@@ -59,12 +57,13 @@ export async function DELETE(request: NextRequest) {
     const projectIdValidation = validateRequired(projectId, 'プロジェクトID');
     if (projectIdValidation) return projectIdValidation;
 
-    const result = await deleteProject(projectId!, userId);
-    if (result instanceof NextResponse) {
-      return result;
-    }
+    const response = await backendFetch(
+      `/api/projects/${encodeURIComponent(projectId!)}`,
+      userId,
+      { method: 'DELETE' }
+    );
 
-    return NextResponse.json({ message: 'プロジェクトが正常に削除されました' });
+    return proxyResponse(response);
   } catch (error) {
     // 認証エラーの場合は401を返す
     if (error instanceof Error && error.message === '認証が必要です') {

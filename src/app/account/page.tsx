@@ -1,19 +1,21 @@
-import { prisma } from "@/lib/prisma";
 import AccountClient from "@/components/AccountClient";
 import { requireAuth } from "@/lib/api-helpers";
+import { backendGetJson } from "@/lib/backend";
+
+// バックエンド(GET /api/account/quota)のレスポンス
+interface Quota {
+  plan: string;
+  left_projects: number;
+}
 
 export default async function AccountPage() {
   try {
     const { session, userId } = await requireAuth();
 
-    // ユーザー情報を取得（プラン情報を含む）
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    // プラン情報はSpring Bootから取得する
+    const quota = await backendGetJson<Quota>("/api/account/quota", userId);
 
-    const userPlan = (user as any)?.plan ?? 'FREE';
-
-    return <AccountClient session={session} userPlan={userPlan} />;
+    return <AccountClient session={session} userPlan={quota.plan} />;
   } catch (error) {
     // 認証エラーの場合はログインページを表示
     return (

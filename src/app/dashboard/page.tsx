@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import DashboardClient from "@/components/DashboardClient";
-import { DEFAULT_LEFT_PROJECTS } from "@/lib/config";
 import { generateProjectUrlByType } from "@/lib/dashboard-config";
 import { requireAuth } from "@/lib/api-helpers";
+import { backendGetJson } from "@/lib/backend";
 
 interface Project {
   id: string;
@@ -13,7 +12,7 @@ interface Project {
   slug: string;
   type: string;
   name?: string | null;
-  url: string; // プロジェクトのURL（messageの場合はgenerateProjectUrl、pictureの場合はS3のURL）
+  url: string; // プロジェクトのURL（messageの場合はgenerateProjectUrl）
   projectMessage?: {
     message: string;
   } | null;
@@ -30,57 +29,50 @@ interface UserInfo {
   plan: string;
 }
 
+// バックエンド(GET /api/projects)のレスポンス。日付はISO文字列で返ってくる
+type RawProject = Omit<Project, "url" | "created_at" | "expires_at"> & {
+  created_at: string;
+  expires_at: string;
+};
+
+// バックエンド(GET /api/account/quota)のレスポンス
+interface Quota {
+  plan: string;
+  left_projects: number;
+}
+
 export default async function DashboardPage() {
   try {
-    const { userId } = await requireAuth();
+    const { session, userId } = await requireAuth();
 
-    // ユーザー情報とプロジェクトデータを並列で取得
-    const [user, rawProjects] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          left_projects: true,
-          plan: true,
-        },
-      }),
-      prisma.project.findMany({  //eager loading：userに関する情報をまとめて先に取得
-        where: {
-          user_id: userId,
-        },
-        include: {
-          projectMessage: true,
-          projectPicture: true,
-        },
-        orderBy: {
-          created_at: 'desc',
-        },
-      }),
+    // プロジェクトと残機・プランを並列で取得（どちらもSpring Bootが提供）
+    const [quota, rawProjects] = await Promise.all([
+      backendGetJson<Quota>("/api/account/quota", userId),
+      backendGetJson<RawProject[]>("/api/projects", userId),
     ]);
 
-    if (!user) {
-      throw new Error('ユーザーが見つかりません');
-    }
+    // プロジェクトタイプに応じてURLを生成（設定ベースのアプローチ）
+    const userProjects: Project[] = rawProjects.map((project) => {
+      const withDates = {
+        ...project,
+        created_at: new Date(project.created_at),
+        expires_at: new Date(project.expires_at),
+      };
+      const url = generateProjectUrlByType(withDates);
 
-  // プロジェクトタイプに応じてURLを生成（設定ベースのアプローチ）
-  const userProjects: Project[] = rawProjects.map((project) => {
-    const url = generateProjectUrlByType(project);
-    
-    return {
-      ...project,
-      url,
-    };
-  });
+      return {
+        ...withDates,
+        url,
+      };
+    });
 
-    // ユーザー情報を整理
+    // ユーザー情報を整理（名前・メールはセッション、残機・プランはバックエンドから）
     const userInfo: UserInfo = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      left_projects: user.left_projects ?? DEFAULT_LEFT_PROJECTS,
-      plan: user.plan ?? 'FREE',
+      id: userId,
+      name: session.user?.name ?? null,
+      email: session.user?.email ?? null,
+      left_projects: quota.left_projects,
+      plan: quota.plan,
     };
 
     return (
