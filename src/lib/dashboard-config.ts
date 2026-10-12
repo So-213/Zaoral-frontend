@@ -1,6 +1,5 @@
 import { Project } from "@/types/dashboard";
 import { generateProjectUrl } from "@/lib/config";
-import { getS3PublicUrl } from "@/lib/s3";
 
 /**
  * プロジェクトタイプごとの表示フィールド設定
@@ -26,15 +25,10 @@ export type ProjectUrlGenerator = (project: {
 
 /**
  * プロジェクトタイプごとのURL生成設定
+ * picture型は停止中のため、S3のURL生成は持たない。再開時はバックエンドがURLをレスポンスに含めて返す
  * 新しいタイプを追加する場合は、ここにURL生成ロジックを追加するだけ
  */
 export const projectTypeUrlGenerators: Record<string, ProjectUrlGenerator> = {
-  picture: (project) => {
-    if (!project.projectPicture?.s3_key) {
-      throw new Error(`pictureタイプのプロジェクト（slug: ${project.slug}）にs3_keyが設定されていません`);
-    }
-    return getS3PublicUrl(project.projectPicture.s3_key);
-  },
   message: (project) => {
     return generateProjectUrl(project.slug);
   },

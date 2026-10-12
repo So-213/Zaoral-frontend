@@ -5,6 +5,7 @@ import Google from "next-auth/providers/google"
 import LINE from "next-auth/providers/line"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "./prisma"
+import { initializeUserQuota } from "./backend"
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma), //認証時のDB保存　//providerが違ってもidが一意になるようにする
@@ -43,6 +44,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
               emailVerified: new Date(),
             },
           });
+          // PrismaAdapterを通らないため events.createUser が発火しない。quota初期化を明示的に呼ぶ
+          await initializeUserQuota(user.id);
         }
 
         // DBに存在する実際のユーザーIDを返す
@@ -69,6 +72,15 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         secure: process.env.NODE_ENV === 'production'
       }
     }
+  },
+  events: {
+    // 新規ユーザー作成時に1度だけ発火する。業務データ(user_quota)の初期化をSpring Bootへ依頼する。
+    // events はイベントであり、失敗してもユーザー作成はロールバックされない(initializeUserQuota は例外を投げない)。
+    async createUser({ user }) {
+      if (user.id) {
+        await initializeUserQuota(user.id);
+      }
+    },
   },
   callbacks: {
     async jwt({ token, user }) {//userはプロバイダーから取得したユーザー情報
