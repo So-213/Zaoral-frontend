@@ -1,5 +1,6 @@
 import AccountClient from "@/components/AccountClient";
-import { requireAuth } from "@/lib/api-helpers";
+import { AuthRequiredNotice, DataFetchErrorNotice } from "@/components/PageNotice";
+import { AuthRequiredError, requireAuth } from "@/lib/api-helpers";
 import { backendGetJson } from "@/lib/backend";
 
 // バックエンド(GET /api/account/quota)のレスポンス
@@ -17,19 +18,13 @@ export default async function AccountPage() {
 
     return <AccountClient session={session} userPlan={quota.plan} />;
   } catch (error) {
-    // 認証エラーの場合はログインページを表示
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">ログインが必要です</h1>
-          <a 
-            href="/auth/signin"
-            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
-          >
-            ログイン
-          </a>
-        </div>
-      </div>
-    );
+    // 未認証とバックエンド障害を区別する。まとめて扱うと、ログイン済みなのに
+    // バックエンドが落ちているだけのユーザーに「ログインが必要です」を見せてしまう
+    if (error instanceof AuthRequiredError) {
+      return <AuthRequiredNotice />;
+    }
+
+    console.error('アカウントページの表示に失敗しました:', error);
+    return <DataFetchErrorNotice retryHref="/account" />;
   }
 }

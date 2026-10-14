@@ -2,15 +2,30 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 
 /**
+ * 認証エラーを表すエラー型。
+ *
+ * 呼び出し側が「未認証」と「それ以外の失敗(バックエンド障害など)」を区別できるようにするため、
+ * requireAuth() は素の Error ではなくこの型を投げる。
+ * 区別しないと、バックエンドが落ちているだけのログイン済みユーザーに
+ * 「ログインが必要です」を表示してしまう。
+ */
+export class AuthRequiredError extends Error {
+  constructor(message: string = '認証が必要です') {
+    super(message);
+    this.name = 'AuthRequiredError';
+  }
+}
+
+/**
  * 認証チェック用のヘルパー関数
  * @returns 認証されたユーザー情報とセッション情報
- * @throws 認証されていない場合はエラーを投げる
+ * @throws 認証されていない場合は AuthRequiredError を投げる
  */
 export async function requireAuth() {
   const session = await auth();
 
   if (!session?.user?.id) {
-    throw new Error('認証が必要です');
+    throw new AuthRequiredError();
   }
 
   return {
