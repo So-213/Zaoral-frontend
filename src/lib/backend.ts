@@ -53,21 +53,3 @@ export async function proxyResponse(response: Response): Promise<NextResponse> {
   const body = await response.json().catch(() => null);
   return NextResponse.json(body, { status: response.status });
 }
-
-/**
- * サインアップ時に、バックエンドへ user_quota の初期化を依頼する(冪等)。
- *
- * NextAuth の events.createUser から呼ばれる。events は「イベント」であり、ここで例外を投げても
- * 作成済みの "User" 行はロールバックされない。したがって失敗してもログに残すだけで、例外は投げない。
- * 失敗した場合は "User" だけが存在し user_quota が無い状態になる(受容したリスク。05_DB切り分け.md 参照)。
- */
-export async function initializeUserQuota(userId: string): Promise<void> {
-  try {
-    const response = await backendFetch('/api/internal/user-quota', userId, { method: 'POST' });
-    if (!response.ok) {
-      console.error(`user_quota の初期化に失敗しました: userId=${userId} status=${response.status}`);
-    }
-  } catch (error) {
-    console.error(`user_quota の初期化に失敗しました: userId=${userId}`, error);
-  }
-}
