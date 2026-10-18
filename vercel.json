@@ -6,11 +6,5 @@
     "app/api/**/*.ts": {
       "maxDuration": 30
     }
-  },
-  "crons": [
-    {
-      "path": "/api/cron/cleanup-expired-projects",
-      "schedule": "0 0 1 * *"
-    }
-  ]
+  }
 }

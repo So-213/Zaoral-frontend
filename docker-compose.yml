@@ -47,7 +47,6 @@ services:
       S3_BUCKET_NAME: ${S3_BUCKET_NAME}
       # その他
       NEXT_PUBLIC_PROJECT_DISPLAY_URL: ${NEXT_PUBLIC_PROJECT_DISPLAY_URL:-http://localhost:3000}
-      CRON_SECRET: ${CRON_SECRET:-}
     depends_on:
       db:
         condition: service_healthy

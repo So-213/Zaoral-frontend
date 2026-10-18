@@ -1,0 +1,7 @@
+# 既定は Git に任せる(Windowsの作業環境では core.autocrlf=true により CRLF でチェックアウトされる)
+* text=auto
+
+# コンテナにそのままマウントして実行するファイルは LF を強制する。
+# CRLF になるとシェバンが "/bin/sh\r" と解釈されて起動できず、crontab も解析に失敗する。
+ops/cron/crontab text eol=lf
+*.sh text eol=lf

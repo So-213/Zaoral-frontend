@@ -47,10 +47,36 @@ services:
       AWS_REGION: ${AWS_REGION:-ap-northeast-1}
       S3_BUCKET_NAME: ${S3_BUCKET_NAME}
       NEXT_PUBLIC_PROJECT_DISPLAY_URL: ${NEXT_PUBLIC_PROJECT_DISPLAY_URL:-http://localhost:3000}
-      CRON_SECRET: ${CRON_SECRET:-}
     depends_on:
       db:
         condition: service_healthy
+
+  # 期限切れプロジェクト削除のcron(busybox crond)。
+  # 叩く先はホストのSpring Bootで、削除の判定はバックエンド側の責務。
+  # スケジュールは ops/cron/crontab、実行内容は ops/cron/cleanup-expired-projects.sh。
+  # 詳細は Zaoral-backend-springboot の README「期限切れプロジェクトの削除」参照。
+  cron:
+    image: alpine:3.20
+    restart: unless-stopped
+    environment:
+      BACKEND_API_URL: ${BACKEND_API_URL:-http://host.docker.internal:8080}
+      # 未設定でも up は通す(ここで必須にすると、cronのためにスタック全体が起動できなくなる)。
+      # 未設定のまま実行されるとスクリプトが理由付きで失敗し、docker logs に出る
+      CRON_SECRET: ${CRON_SECRET:-}
+      # crontab の実行時刻はUTC基準(置き換え元のVercel Cronと同じ)。ホストのTZに依存させない
+      TZ: UTC
+    volumes:
+      # busybox crond が読むのは /etc/crontabs/<ユーザー名>
+      - ./ops/cron/crontab:/etc/crontabs/root:ro
+      - ./ops/cron/cleanup-expired-projects.sh:/usr/local/bin/cleanup-expired-projects:ro
+    # Docker Desktop では既定で解決できるが、Linuxホストでは明示しないと host.docker.internal が引けない
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # -f: フォアグラウンド実行(コンテナのPID 1として動かす) / -l 8: crond自身のログを出させる
+    command: >
+      sh -c "apk add --no-cache curl > /dev/null &&
+             export -p > /etc/cron.env &&
+             exec crond -f -l 8"
 
   # pgAdmin（DBをブラウザから確認する用）
   # 使用方法: http://localhost:5050 （ログイン: admin@zaoral.dev / admin）

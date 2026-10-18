@@ -1,0 +1,10 @@
+# 期限切れプロジェクトの削除。
+#
+# 置き換え元の Vercel Cron (vercel.json の crons) が "0 0 1 * *" = 毎月1日 00:00 UTC だったため、
+# 実行時刻をそのまま引き継いでいる。コンテナの TZ は docker-compose.dev.yml で UTC に固定している。
+#
+# 実行ビットに依存しないよう sh に渡して起動する(バインドマウントのモードは環境差が出る)。
+# 出力は PID 1 (crond) の標準出力に流し、docker logs から見えるようにする。
+# busybox crond はジョブの出力を既定で sendmail に渡そうとするため、明示的にリダイレクトする。
+0 0 1 * * /bin/sh /usr/local/bin/cleanup-expired-projects >> /proc/1/fd/1 2>&1
+
