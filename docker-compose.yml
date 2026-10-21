@@ -14,11 +14,30 @@ services:
       - "5432:5432"
     volumes:
       - zaoral_postgres_data:/var/lib/postgresql/data
+      # ロール(zaoral_migrator / zaoral_app)を作成する初期化SQL。
+      # 初回起動時(=上のボリュームが空のとき)のみ実行される
+      - ./ops/db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U zaoral -d zaoral"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # マイグレーション専用。流し終えたら終了する使い捨てサービス(常駐しない)。
+  # DDL権限を持つ zaoral_migrator で接続するのはここだけで、appはDMLしかできない。
+  # ロール定義は ops/db/init/01-roles.sql 参照。
+  # appと同じイメージを command 上書きで使う(依存はイメージに焼かれているので npm ci 不要)
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "npx prisma migrate deploy"
+    environment:
+      DATABASE_URL: postgresql://zaoral_migrator:${DB_MIGRATOR_PASSWORD:-zaoral_migrator_dev_password}@db:5432/zaoral
+      DIRECT_URL: postgresql://zaoral_migrator:${DB_MIGRATOR_PASSWORD:-zaoral_migrator_dev_password}@db:5432/zaoral
+    depends_on:
+      db:
+        condition: service_healthy
 
   # Next.js アプリケーション
   app:
@@ -30,8 +49,9 @@ services:
       - "3000:3000"
     environment:
       # データベース（Docker Compose 内のサービス名で接続）
-      DATABASE_URL: postgresql://zaoral:zaoral_dev_password@db:5432/zaoral
-      DIRECT_URL: postgresql://zaoral:zaoral_dev_password@db:5432/zaoral
+      # DMLのみ許可されたロール。マイグレーションは migrate サービスの責務
+      DATABASE_URL: postgresql://zaoral_app:${DB_APP_PASSWORD:-zaoral_app_dev_password}@db:5432/zaoral
+      DIRECT_URL: postgresql://zaoral_app:${DB_APP_PASSWORD:-zaoral_app_dev_password}@db:5432/zaoral
       # NextAuth
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
@@ -48,8 +68,9 @@ services:
       # その他
       NEXT_PUBLIC_PROJECT_DISPLAY_URL: ${NEXT_PUBLIC_PROJECT_DISPLAY_URL:-http://localhost:3000}
     depends_on:
-      db:
-        condition: service_healthy
+      # マイグレーションが正常終了(終了コード0)するまでappを起動しない
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   zaoral_postgres_data:
