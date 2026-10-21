@@ -57,5 +57,6 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# 起動時にマイグレーションを実行してからアプリを起動
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]
+# アプリの起動のみ。マイグレーションは docker-compose.yml の migrate サービスが担う
+# (アプリ用ロール zaoral_app にはDDL権限が無いため、ここで migrate deploy しても失敗する)
+CMD ["sh", "-c", "npm run start"]

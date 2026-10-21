@@ -2,6 +2,10 @@
 # ホットリロード付きで開発環境を起動
 # 使用方法: docker compose -f docker-compose.dev.yml up　イメージを立ち上げる
 # docker compose up --build　　ビルドしてイメージを作り直してから立ち上げる
+#
+# DBロールは db の初回起動時に ops/db/init/01-roles.sql で作られる。
+# 既存ボリュームには流れないため、初回導入時は一度作り直すこと(開発データは消える):
+#   docker compose -f docker-compose.dev.yml down -v
 
 services:
   # localhostだとホストのPostgreSQLには直接つながらないため、自前で用意したものを使用
@@ -16,24 +20,51 @@ services:
       - "5432:5432"
     volumes:
       - zaoral_postgres_data:/var/lib/postgresql/data
+      # ロール(zaoral_migrator / zaoral_app)を作成する初期化SQL。
+      # 初回起動時(=上のボリュームが空のとき)のみ実行される
+      - ./ops/db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U zaoral -d zaoral"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  # マイグレーション専用。流し終えたら終了する使い捨てサービス(常駐しない)。
+  # DDL権限を持つ zaoral_migrator で接続するのはここだけで、appはDMLしかできない。
+  # これにより、アプリ側の実装ミスやSQLインジェクションでテーブルを壊せなくなる。
+  # ロール定義は ops/db/init/01-roles.sql 参照。
+  #
+  # 新しいマイグレーションを作る場合(migrate dev)もこのサービス経由で実行する:
+  #   docker compose -f docker-compose.dev.yml run --rm migrate npx prisma migrate dev --name xxx
+  migrate:
+    image: node:22.9.0-slim
+    working_dir: /app
+    command: sh -c "npm ci && npx prisma generate && npx prisma migrate deploy"
+    volumes:
+      - .:/app
+      - zaoral_node_modules:/app/node_modules
+    environment:
+      DATABASE_URL: postgresql://zaoral_migrator:zaoral_migrator_dev_password@db:5432/zaoral
+      DIRECT_URL: postgresql://zaoral_migrator:zaoral_migrator_dev_password@db:5432/zaoral
+    depends_on:
+      db:
+        condition: service_healthy
+
   app:
     image: node:22.9.0-slim
     working_dir: /app
-    command: sh -c "npm ci && npx prisma generate && npx prisma migrate deploy && npm run dev"
+    # npm ci / prisma generate / migrate deploy は migrate サービスへ移動済み
+    command: sh -c "npm run dev"
     ports:
       - "3000:3000"
     volumes:
       - .:/app
-      - /app/node_modules
+      # migrate サービスが npm ci した成果を共有するため名前付きボリュームにする。
+      # 匿名ボリューム(- /app/node_modules)だとサービスごとに別物になり、appから見えない
+      - zaoral_node_modules:/app/node_modules
     environment:
-      DATABASE_URL: postgresql://zaoral:zaoral_dev_password@db:5432/zaoral
-      DIRECT_URL: postgresql://zaoral:zaoral_dev_password@db:5432/zaoral
+      DATABASE_URL: postgresql://zaoral_app:zaoral_app_dev_password@db:5432/zaoral
+      DIRECT_URL: postgresql://zaoral_app:zaoral_app_dev_password@db:5432/zaoral
       # Spring Boot(ホストのPleiadesで起動)の接続先。コンテナ内の localhost はコンテナ自身を指すため host.docker.internal を使う
       BACKEND_API_URL: ${BACKEND_API_URL:-http://host.docker.internal:8080}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
@@ -48,8 +79,10 @@ services:
       S3_BUCKET_NAME: ${S3_BUCKET_NAME}
       NEXT_PUBLIC_PROJECT_DISPLAY_URL: ${NEXT_PUBLIC_PROJECT_DISPLAY_URL:-http://localhost:3000}
     depends_on:
-      db:
-        condition: service_healthy
+      # マイグレーションが正常終了(終了コード0)するまでappを起動しない。
+      # 失敗した場合はappが起動しないので、スキーマ不整合のまま動き出すことがない
+      migrate:
+        condition: service_completed_successfully
 
   # 期限切れプロジェクト削除のcron(busybox crond)。
   # 叩く先はホストのSpring Bootで、削除の判定はバックエンド側の責務。
@@ -98,5 +131,7 @@ services:
 volumes:
   zaoral_postgres_data:
   zaoral_pgadmin_data:
+  # migrate と app で node_modules を共有する
+  zaoral_node_modules:
 
 
