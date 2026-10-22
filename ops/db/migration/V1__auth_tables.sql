@@ -1,3 +1,14 @@
+-- 認証テーブル(NextAuth)。
+--
+-- 元は Prisma のマイグレーション(prisma/migrations/20261008123106_init_auth_only)が
+-- 作っていたものを、スキーマ適用をFlywayへ一元化した際に移植した。内容は無変更。
+--
+-- これらのテーブルは Next.js の NextAuth(PrismaAdapter)が読み書きする。
+-- prisma/schema.prisma はPrisma Clientの型を生成するための定義として残っているが、
+-- DBに適用されるのはこのファイルであり、schema.prisma から適用されることはない。
+-- 変更時は schema.prisma を編集した上で `npm run db:drift` でSQLを生成し、
+-- 新しい V<n>__*.sql として追加する(ops/db/README.md 参照)。
+
 -- CreateTable
 CREATE TABLE "Account" (
     "id" TEXT NOT NULL,

@@ -23,18 +23,20 @@ services:
       timeout: 5s
       retries: 5
 
-  # マイグレーション専用。流し終えたら終了する使い捨てサービス(常駐しない)。
-  # DDL権限を持つ zaoral_migrator で接続するのはここだけで、appはDMLしかできない。
-  # ロール定義は ops/db/init/01-roles.sql 参照。
-  # appと同じイメージを command 上書きで使う(依存はイメージに焼かれているので npm ci 不要)
+  # DB作成プロセス。スキーマを適用する唯一の主体で、流し終えたら終了する(常駐しない)。
+  # DDL権限を持つ zaoral_migrator で接続するのはここだけ。
+  # SQLは ops/db/migration/、ロール定義は ops/db/init/01-roles.sql、運用は ops/db/README.md 参照
   migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: sh -c "npx prisma migrate deploy"
-    environment:
-      DATABASE_URL: postgresql://zaoral_migrator:${DB_MIGRATOR_PASSWORD:-zaoral_migrator_dev_password}@db:5432/zaoral
-      DIRECT_URL: postgresql://zaoral_migrator:${DB_MIGRATOR_PASSWORD:-zaoral_migrator_dev_password}@db:5432/zaoral
+    image: flyway/flyway:11-alpine
+    command: >
+      -url=jdbc:postgresql://db:5432/zaoral
+      -user=zaoral_migrator
+      -password=${DB_MIGRATOR_PASSWORD:-zaoral_migrator_dev_password}
+      -locations=filesystem:/flyway/sql
+      -connectRetries=10
+      migrate
+    volumes:
+      - ./ops/db/migration:/flyway/sql:ro
     depends_on:
       db:
         condition: service_healthy

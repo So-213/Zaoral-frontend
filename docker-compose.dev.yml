@@ -29,23 +29,27 @@ services:
       timeout: 5s
       retries: 5
 
-  # マイグレーション専用。流し終えたら終了する使い捨てサービス(常駐しない)。
-  # DDL権限を持つ zaoral_migrator で接続するのはここだけで、appはDMLしかできない。
+  # DB作成プロセス。スキーマを適用する唯一の主体で、流し終えたら終了する(常駐しない)。
+  # DDL権限を持つ zaoral_migrator で接続するのはここだけで、app も Spring Boot も DML しかできない。
   # これにより、アプリ側の実装ミスやSQLインジェクションでテーブルを壊せなくなる。
-  # ロール定義は ops/db/init/01-roles.sql 参照。
   #
-  # 新しいマイグレーションを作る場合(migrate dev)もこのサービス経由で実行する:
-  #   docker compose -f docker-compose.dev.yml run --rm migrate npx prisma migrate dev --name xxx
+  # SQLは ops/db/migration/ に置く。アプリのリポジトリではなく、複数の消費者
+  # (Next.js / Spring Boot / Zaoral_backend3)が共有するコントラクトとして扱う。
+  # ロール定義は ops/db/init/01-roles.sql、運用は ops/db/README.md 参照。
   migrate:
-    image: node:22.9.0-slim
-    working_dir: /app
-    command: sh -c "npm ci && npx prisma generate && npx prisma migrate deploy"
+    image: flyway/flyway:11-alpine
+    # -locations: 既定の /flyway/sql も読まれるが、暗黙に頼ると警告が出るため明示する
+    # -connectRetries: depends_on で healthy を待つが、起動直後の接続失敗に備える
+    command: >
+      -url=jdbc:postgresql://db:5432/zaoral
+      -user=zaoral_migrator
+      -password=zaoral_migrator_dev_password
+      -locations=filesystem:/flyway/sql
+      -connectRetries=10
+      migrate
     volumes:
-      - .:/app
-      - zaoral_node_modules:/app/node_modules
-    environment:
-      DATABASE_URL: postgresql://zaoral_migrator:zaoral_migrator_dev_password@db:5432/zaoral
-      DIRECT_URL: postgresql://zaoral_migrator:zaoral_migrator_dev_password@db:5432/zaoral
+      # Flywayイメージが既定で読むSQLの置き場所
+      - ./ops/db/migration:/flyway/sql:ro
     depends_on:
       db:
         condition: service_healthy
@@ -53,15 +57,14 @@ services:
   app:
     image: node:22.9.0-slim
     working_dir: /app
-    # npm ci / prisma generate / migrate deploy は migrate サービスへ移動済み
-    command: sh -c "npm run dev"
+    # DBへの適用は migrate サービスの責務。ここではDDLを一切打たない
+    command: sh -c "npm ci && npx prisma generate && npm run dev"
     ports:
       - "3000:3000"
     volumes:
       - .:/app
-      # migrate サービスが npm ci した成果を共有するため名前付きボリュームにする。
-      # 匿名ボリューム(- /app/node_modules)だとサービスごとに別物になり、appから見えない
-      - zaoral_node_modules:/app/node_modules
+      # ホストの node_modules でコンテナ内を上書きしないための蓋
+      - /app/node_modules
     environment:
       DATABASE_URL: postgresql://zaoral_app:zaoral_app_dev_password@db:5432/zaoral
       DIRECT_URL: postgresql://zaoral_app:zaoral_app_dev_password@db:5432/zaoral
@@ -131,7 +134,5 @@ services:
 volumes:
   zaoral_postgres_data:
   zaoral_pgadmin_data:
-  # migrate と app で node_modules を共有する
-  zaoral_node_modules:
 
 
