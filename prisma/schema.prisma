@@ -1,3 +1,20 @@
+// このファイルは Prisma Client の型を生成するための定義であり、DBへの適用には使われない。
+// スキーマの適用は DB作成プロセス(Flyway / ops/db/migration/)が唯一の主体。
+//
+// したがって `prisma migrate dev` / `migrate deploy` / `db push` は実行しないこと。
+// Flywayが作ったテーブルに対して DROP を生成する。
+//
+// 認証テーブルを変更する場合の手順:
+//   1. このファイルのモデルを編集
+//   2. `docker compose -f docker-compose.dev.yml exec app npm run db:diff` で差分SQLを出力
+//   3. 認証テーブルに関する文だけを抜き出し、ops/db/migration/V<n>__*.sql として保存
+//   4. migrate サービスで適用
+//
+// 手順3で選別が必要なのは、Prismaが「DB全体」をこのファイルと比較するため。業務テーブル
+// (projects / projects_message / projects_picture / user_quota)と flyway_schema_history は
+// このファイルに載っていないので、毎回 DROP TABLE として出力される。破棄すること。
+// 詳細は ops/db/README.md 参照。
+//
 // 変更を加えたらEC2サーバにも
 // EC2側でgenerate
 
